@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>普通批大学分布大屏</title>
+    <script src="/static/echarts.min.js"></script>
+    <style>
+        body { background: #f5f6fa; margin: 0; font-family: 'Microsoft YaHei', Arial; }
+        .container { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 20px; width: 96vw; max-width: 1400px; margin: 0 auto; }
+        .left-panel, .right-panel { min-width: 0; }
+        .left-panel { width: 60%; min-width: 400px; margin: 20px 0 20px 0; }
+        .right-panel { width: 40%; min-width: 350px; display: flex; flex-direction: column; gap: 20px; margin: 20px 0 20px 0; }
+        .chart-box { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #eee; padding: 10px; width: 100%; box-sizing: border-box; }
+        #chinaMap { width: 100%; height: 700px; }
+        #barChart { width: 100%; height: 330px; }
+        #pieChart { width: 100%; height: 330px; }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 80px;
+            text-align: center;
+            flex: 1;
+        }
+        .stat-enroll .stat-label {
+            color: #1a355b !important;
+            font-weight: bold;
+        }
+        .stat-enroll .stat-value {
+            color: #e74c3c !important;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .stat-label {
+            color: #4a6fa1;
+            font-size: 0.98em;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        .stat-value {
+            color: #1a355b;
+            font-size: 1.3em;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        /* 表格字体放大 */
+        #university-table { font-size: 17px !important; }
+        #university-table th, #university-table td { padding: 10px 8px; }
+        /* 分页按钮字体放大 */
+        #prev-page, #next-page, #page-info { font-size: 16px; }
+        /* 让表格和上方图表宽度一致 */
+        .table-container { width: 96vw; max-width: 1400px; margin: 20px auto; }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            #stats-bar > div {
+                flex-direction: column !important;
+                gap: 15px !important;
+            }
+            .stat-item {
+                min-width: 60px;
+            }
+            /* 在小屏幕上隐藏分隔线 */
+            #stats-bar > div > div[style*="height: 40px"] {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">2025年全国大学（普通）招生情况</h1>
+    <!-- 统一的信息栏 -->
+    <div id="stats-bar" style="width:96vw;max-width:1400px;margin:0 auto 18px auto;padding:0;">
+        <div style="
+            background: linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px #e0e7ef44;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+            border: 1px solid rgba(227, 240, 252, 0.3);
+        ">
+            <div class="stat-item">
+                <div class="stat-label">大学总数</div>
+                <div class="stat-value" id="stat-total">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">985大学</div>
+                <div class="stat-value" id="stat-985">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">双一流大学</div>
+                <div class="stat-value" id="stat-216">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">211大学</div>
+                <div class="stat-value" id="stat-211">-</div>
+            </div>
+            <div style="width: 1px; height: 40px; background: rgba(26, 53, 91, 0.2); margin: 0 5px;"></div>
+            <div class="stat-item">
+                <div class="stat-label">公办大学</div>
+                <div class="stat-value" id="stat-public">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">民办大学</div>
+                <div class="stat-value" id="stat-private">-</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">其它</div>
+                <div class="stat-value" id="stat-other">-</div>
+            </div>
+            <div style="width: 1px; height: 40px; background: rgba(26, 53, 91, 0.2); margin: 0 5px;"></div>
+            <div class="stat-item stat-enroll">
+                <div class="stat-label">招生总数 *</div>
+                <div class="stat-value" id="stat-enroll">-</div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="left-panel">
+            <div class="chart-box">
+                <div style="position: relative;">
+                    <div id="chinaMap"></div>
+                    <!-- 地图控制按钮 -->
+                    <div style="position: absolute; top: 15px; right: 15px; z-index: 1000;">
+                        <button id="back-to-national" onclick="backToNational()" style="
+                            background: rgba(255, 255, 255, 0.9);
+                            border: 1px solid #ddd;
+                            border-radius: 6px;
+                            padding: 8px 12px;
+                            font-size: 12px;
+                            cursor: pointer;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                            color: #666;
+                            font-family: 'Microsoft YaHei', Arial;
+                            transition: all 0.2s;
+                        " onmouseover="this.style.background='rgba(255,255,255,1)';this.style.color='#333'" onmouseout="this.style.background='rgba(255,255,255,0.9)';this.style.color='#666'">
+                            🏠 返回全国
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="chart-box"><div id="barChart"></div></div>
+            <div class="chart-box"><div id="pieChart"></div></div>
+        </div>
+    </div>
+    
+    <!-- 地图操作提示 -->
+    <div style="width:96vw;max-width:1400px;margin:10px auto;text-align:center;">
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; color: #666; font-size: 13px; border: 1px solid #e9ecef;">
+            <span style="margin-right: 20px;">💡 <strong>地图操作提示：</strong></span>
+            <span style="margin-right: 15px;">🖱️ 鼠标滚轮缩放</span>
+            <span style="margin-right: 15px;">👆 按住拖拽移动</span>
+            <span style="margin-right: 15px;">🖱️ 单击查看省份详情</span>
+            <span style="margin-right: 15px;">🖱️ 双击返回全国视图</span>
+            <span style="margin-right: 20px;">🏠 点击右上角按钮返回全国</span>
+            <span>* 招生总数具体见底部大学详细信息<strong style="color: #1e6bb8;">2025年计划招生总数</strong></span>
+        </div>
+    </div>
+    
+    <!-- 大学详细信息表格 -->
+    <div class="table-container">
+        <div class="chart-box" style="padding: 20px;">
+            <h3 id="table-title" style="text-align: center; margin-bottom: 20px; color: #1a355b;">全国大学详细信息</h3>
+            
+            <!-- 表格容器 -->
+            <div style="overflow-x: auto;">
+                <table id="university-table" style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%);">
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">学校代码</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">学校名称</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">层次</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">位置</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b; min-width: 120px;">专业代码</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">2025年计划招生总数</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">2025年估分</th>
+                            <th style="padding: 12px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #1a355b;">页码范围</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- 表格内容将通过JavaScript动态生成 -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 分页控件 -->
+            <div style="display: flex; justify-content: center; align-items: center; margin-top: 20px; gap: 10px;">
+                <button id="prev-page" onclick="changePage(-1)" style="
+                    padding: 8px 16px;
+                    background: linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%);
+                    color: #357abd;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-family: 'Microsoft YaHei', Arial;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='linear-gradient(135deg, #d0e7fa 0%, #eaf4fb 100%)'" onmouseout="this.style.background='linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%)'">
+                    上一页
+                </button>
+                <span id="page-info" style="color: #1a355b; font-weight: bold;">第 1 页，共 1 页</span>
+                <button id="next-page" onclick="changePage(1)" style="
+                    padding: 8px 16px;
+                    background: linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%);
+                    color: #357abd;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-family: 'Microsoft YaHei', Arial;
+                    transition: all 0.2s;
+                " onmouseover="this.style.background='linear-gradient(135deg, #d0e7fa 0%, #eaf4fb 100%)'" onmouseout="this.style.background='linear-gradient(135deg, #e3f0fc 0%, #f6fafd 100%)'">
+                    下一页
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+    // 省份名标准化映射
+    const provinceNameMap = {
+        '北京': '北京市', '天津': '天津市', '上海': '上海市', '重庆': '重庆市',
+        '河北': '河北省', '山西': '山西省', '辽宁': '辽宁省', '吉林': '吉林省', '黑龙江': '黑龙江省',
+        '江苏': '江苏省', '浙江': '浙江省', '安徽': '安徽省', '福建': '福建省', '江西': '江西省',
+        '山东': '山东省', '河南': '河南省', '湖北': '湖北省', '湖南': '湖南省', '广东': '广东省',
+        '海南': '海南省', '四川': '四川省', '贵州': '贵州省', '云南': '云南省', '陕西': '陕西省',
+        '甘肃': '甘肃省', '青海': '青海省', '台湾': '台湾省', '内蒙古': '内蒙古自治区', '广西': '广西壮族自治区',
+        '西藏': '西藏自治区', '宁夏': '宁夏回族自治区', '新疆': '新疆维吾尔自治区', '香港': '香港特别行政区', '澳门': '澳门特别行政区'
+    };
+    // 反向映射
+    const provinceNameMapReverse = Object.fromEntries(Object.entries(provinceNameMap).map(([k,v])=>[v,k]));
+    // 省份英文名映射（用于geojson文件名）
+    const provinceEnMap = {
+        '北京市': 'beijing', '天津市': 'tianjin', '上海市': 'shanghai', '重庆市': 'chongqing',
+        '河北省': 'hebei', '山西省': 'shanxi', '辽宁省': 'liaoning', '吉林省': 'jilin', '黑龙江省': 'heilongjiang',
+        '江苏省': 'jiangsu', '浙江省': 'zhejiang', '安徽省': 'anhui', '福建省': 'fujian', '江西省': 'jiangxi',
+        '山东省': 'shandong', '河南省': 'henan', '湖北省': 'hubei', '湖南省': 'hunan', '广东省': 'guangdong',
+        '海南省': 'hainan', '四川省': 'sichuan', '贵州省': 'guizhou', '云南省': 'yunnan', '陕西省': 'shaanxi',
+        '甘肃省': 'gansu', '青海省': 'qinghai', '台湾省': 'taiwan', '内蒙古自治区': 'neimenggu', '广西壮族自治区': 'guangxi',
+        '西藏自治区': 'xizang', '宁夏回族自治区': 'ningxia', '新疆维吾尔自治区': 'xinjiang', '香港特别行政区': 'xianggang', '澳门特别行政区': 'aomen'
+    };
+
+    let currentMap = 'china';
+    let currentTitle = '各省大学数量分布';
+    let mapChart;
+    let provinceTotalCache = [];
+    let currentProvince = null;
+    let provincePie; // 右侧上方图表
+    let pieChart;    // 右侧下方图表
+    
+    // 表格相关变量
+    let currentTablePage = 1;
+    let currentTableProvince = null;
+    let totalTablePages = 1;
+
+    function getColorByCount(count, maxCount) {
+        if (count === 0) return '#f0f0f0'; // 灰色
+        const ratio = count / maxCount;
+        if (ratio >= 0.75) return '#FF0000'; // 红色
+        if (ratio >= 0.5) return '#FFA500';  // 橙色
+        if (ratio >= 0.25) return '#FFFF00'; // 黄色
+        return '#00FF00'; // 绿色
+    }
+
+    function updateRightCharts(provinceName, cityData, levelData) {
+        // Update city distribution chart (top right)
+        if (cityData && cityData.length > 0) {
+            provincePie.setOption({
+                title: { text: provinceName + '各城市大学数量', left: 'center' },
+                series: [{
+                    data: cityData.map(item => ({
+                        name: item.name,
+                        value: item.value
+                    }))
+                }]
+            });
+        }
+        
+        // Update level distribution chart (bottom right)
+        if (levelData && levelData.length > 0) {
+            pieChart.setOption({
+                title: { text: provinceName + '大学层次占比', left: 'center' },
+                series: [{
+                    data: levelData.map(item => ({
+                        name: item.层次,
+                        value: item.数量
+                    }))
+                }]
+            });
+        }
+    }
+
+    function resetRightCharts() {
+        // Reset to national level
+        provincePie.setOption({
+            title: { text: '各省大学数量', left: 'center' },
+            series: [{
+                data: provinceTotalCache.map(item => ({
+                    name: provinceNameMap[item['省份']],
+                    value: item['总数']
+                }))
+            }]
+        });
+        
+        // Reset level chart to national level
+        fetch('/api/province_level_stats').then(r => r.json()).then(data => {
+            pieChart.setOption({
+                title: { text: '大学层次占比', left: 'center' },
+                series: [{
+                    data: data.level_total.map(item => ({
+                        name: item['层次'],
+                        value: item['总数']
+                    }))
+                }]
+            });
+        });
+    }
+
+
+
+    function backToNational() {
+        if (currentMap !== 'china') {
+            currentProvince = null;
+            currentMap = 'china';
+            // 重新加载全国地图
+            fetch('/static/maps/china.json').then(r => r.json()).then(geoJson => {
+                renderMap('china', geoJson, '各省大学数量分布', provinceTotalCache.map(item => ({
+                    name: provinceNameMap[item['省份']],
+                    value: item['总数']
+                })));
+                resetRightCharts();
+                // 更新表格为全国数据
+                loadUniversityTable(null, 1);
+                updateStatBar();
+            });
+        }
+    }
+
+    function loadUniversityTable(province = null, page = 1) {
+        let url = `/api/university_details?page=${page}&page_size=10`;
+        if (province) {
+            url += `&province=${province}`;
+        }
+        
+        fetch(url).then(r => r.json()).then(data => {
+            // 更新表格标题
+            const tableTitle = document.getElementById('table-title');
+            if (province) {
+                tableTitle.textContent = `${province}大学详细信息`;
+            } else {
+                tableTitle.textContent = '全国大学详细信息';
+            }
+            
+            // 更新表格内容
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = '';
+            
+            data.universities.forEach(univ => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #ddd';
+                row.style.transition = 'background-color 0.2s';
+                row.onmouseover = function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                };
+                row.onmouseout = function() {
+                    this.style.backgroundColor = '';
+                };
+                row.innerHTML = `
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ.学校代码 || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${univ.学校名称 || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ.层次 || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ.位置 || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center; line-height: 1.6; min-width: 120px; vertical-align: middle;">${formatMajorCodes(univ.专业代码)}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ['2025年计划招生总数'] || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ['2025年估分'] || '-'}</td>
+                    <td style="padding: 10px 8px; border: 1px solid #ddd; text-align: center;">${univ.页码范围 || '-'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            // 更新分页信息
+            currentTablePage = data.current_page;
+            totalTablePages = data.total_pages;
+            currentTableProvince = province;
+            
+            document.getElementById('page-info').textContent = `第 ${data.current_page} 页，共 ${data.total_pages} 页`;
+            
+            // 更新分页按钮状态
+            document.getElementById('prev-page').disabled = data.current_page <= 1;
+            document.getElementById('next-page').disabled = data.current_page >= data.total_pages;
+            
+            // 更新按钮样式
+            const prevBtn = document.getElementById('prev-page');
+            const nextBtn = document.getElementById('next-page');
+            
+            if (data.current_page <= 1) {
+                prevBtn.style.opacity = '0.5';
+                prevBtn.style.cursor = 'not-allowed';
+            } else {
+                prevBtn.style.opacity = '1';
+                prevBtn.style.cursor = 'pointer';
+            }
+            
+            if (data.current_page >= data.total_pages) {
+                nextBtn.style.opacity = '0.5';
+                nextBtn.style.cursor = 'not-allowed';
+            } else {
+                nextBtn.style.opacity = '1';
+                nextBtn.style.cursor = 'pointer';
+            }
+        }).catch(error => {
+            console.error('Error loading university table:', error);
+        });
+    }
+
+    function changePage(delta) {
+        const newPage = currentTablePage + delta;
+        if (newPage >= 1 && newPage <= totalTablePages) {
+            loadUniversityTable(currentTableProvince, newPage);
+        }
+    }
+
+    function renderMap(mapName, geoJson, title, data, isCityLevel = false) {
+        echarts.registerMap(mapName, geoJson);
+        const maxCount = Math.max(...data.map(d => d.value || 0));
+        
+        mapChart.setOption({
+            title: { text: title, left: 'center' },
+            tooltip: {
+                trigger: 'item',
+                formatter: function(params) {
+                    if (isCityLevel) {
+                        // 城市级别tooltip
+                        return `${params.name}：${params.value || 0} 所大学`;
+                    } else {
+                        // 省份级别tooltip
+                        let zhName = provinceNameMapReverse[params.name] || params.name;
+                        return `${zhName}：${params.value || 0} 所大学`;
+                    }
+                }
+            },
+            visualMap: {
+                min: 0,
+                max: maxCount,
+                left: 'left',
+                top: 'bottom',
+                text: ['多','少'],
+                inRange: {
+                    color: ['#00FF00', '#FFFF00', '#FFA500', '#FF0000']
+                },
+                calculable: true
+            },
+                            series: [{
+                    name: '大学数量',
+                    type: 'map',
+                    map: mapName,
+                    roam: {
+                        scale: true,      // 启用缩放
+                        move: true,       // 启用拖拽
+                        scaleLimit: {     // 缩放范围限制
+                            min: 0.5,     // 最小缩放比例（可缩小到50%）
+                            max: 3        // 最大缩放比例（可放大到300%）
+                        },
+                        moveOnMouseMove: false,  // 鼠标移动时不拖拽（需要按住拖拽）
+                        moveOnMouseWheel: false  // 鼠标滚轮时不拖拽（仅用于缩放）
+                    },
+                    zoom: 1.1,            // 初始缩放比例（稍微放大一点）
+                    center: null,         // 地图中心点（null表示自动居中）
+                    label: { 
+                        show: true,
+                        fontSize: 10      // 标签字体大小
+                    },
+                    data: data,
+                    itemStyle: {
+                        areaColor: '#f0f0f0',
+                        borderColor: '#ccc',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            areaColor: '#e6f7ff',
+                            borderColor: '#409EFF',
+                            borderWidth: 2
+                        }
+                    }
+                }]
+        });
+        currentMap = mapName;
+        currentTitle = title;
+    }
+
+    // 顶部数据栏刷新函数
+    function updateStatBar(province = null) {
+        let url = '/api/province_stat_bar';
+        if (province) url += `?province=${province}`;
+        fetch(url).then(r => r.json()).then(data => {
+            document.getElementById('stat-total').textContent = data.total;
+            document.getElementById('stat-985').textContent = data['985'];
+            document.getElementById('stat-211').textContent = data['211'];
+            document.getElementById('stat-216').textContent = data['216'];
+            document.getElementById('stat-public').textContent = data.public;
+            document.getElementById('stat-private').textContent = data.private;
+            document.getElementById('stat-other').textContent = data.other;
+            document.getElementById('stat-enroll').textContent = data.total_enroll;
+        }).catch(error => {
+            console.error('Error updating stat bar:', error);
+        });
+    }
+
+    // 格式化专业代码，每5个代码换行
+    function formatMajorCodes(codes) {
+        if (!codes || codes === '-') return '-';
+        
+        const codeArray = codes.split(',');
+        let formattedCodes = '';
+        
+        for (let i = 0; i < codeArray.length; i++) {
+            if (i > 0 && i % 5 === 0) {
+                formattedCodes += '<br>';
+            }
+            if (i > 0 && i % 5 !== 0) {
+                formattedCodes += ',';
+            }
+            formattedCodes += codeArray[i];
+        }
+        
+        return formattedCodes;
+    }
+
+    // 页面初始化时加载全国数据
+    updateStatBar();
+
+    fetch('/static/maps/china.json').then(r => r.json()).then(geoJson => {
+        echarts.registerMap('china', geoJson);
+        fetch('/api/province_level_stats').then(r => r.json()).then(data => {
+            // 只保留中国大陆省份
+            let provinceTotal = data.province_total.filter(item => provinceNameMap[item['省份']]);
+            provinceTotalCache = provinceTotal;
+            // 标准化省份名
+            provinceTotal = provinceTotal.map(item => ({
+                name: provinceNameMap[item['省份']],
+                value: item['总数'],
+                zh: item['省份']
+            }));
+            // 2. 层次总数（饼图）
+            const levelTotal = data.level_total;
+            // 3. 省份-层次分布（堆叠柱状图）
+            const provinceLevel = data.province_level;
+            // 省份列表
+            const provinces = [...new Set(provinceLevel.map(item => item['省份']))];
+            // 层次列表
+            const levels = [...new Set(provinceLevel.map(item => item['层次']))];
+            // 堆叠数据
+            const stackedSeries = levels.map(level => ({
+                name: level,
+                type: 'bar',
+                stack: 'total',
+                emphasis: { focus: 'series' },
+                data: provinces.map(prov => {
+                    const found = provinceLevel.find(x => x['省份'] === prov && x['层次'] === level);
+                    return found ? found['数量'] : 0;
+                })
+            }));
+
+            // 1. 中国地图
+            mapChart = echarts.init(document.getElementById('chinaMap'));
+            mapChart.setOption({
+                title: { text: '各省大学数量分布', left: 'center' },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        let zhName = provinceNameMapReverse[params.name] || params.name;
+                        return `${zhName}：${params.value || 0} 所大学`;
+                    }
+                },
+                visualMap: {
+                    min: 0,
+                    max: Math.max(...provinceTotal.map(d=>d.value)),
+                    left: 'left',
+                    top: 'bottom',
+                    text: ['多','少'],
+                    inRange: {
+                        color: ['#00FF00', '#FFFF00', '#FFA500', '#FF0000']
+                    },
+                    calculable: true
+                },
+                series: [{
+                    name: '大学数量',
+                    type: 'map',
+                    map: 'china',
+                    roam: {
+                        scale: true,      // 启用缩放
+                        move: true,       // 启用拖拽
+                        scaleLimit: {     // 缩放范围限制
+                            min: 0.5,     // 最小缩放比例（可缩小到50%）
+                            max: 3        // 最大缩放比例（可放大到300%）
+                        },
+                        moveOnMouseMove: false,  // 鼠标移动时不拖拽（需要按住拖拽）
+                        moveOnMouseWheel: false  // 鼠标滚轮时不拖拽（仅用于缩放）
+                    },
+                    zoom: 1.1,            // 初始缩放比例（稍微放大一点）
+                    center: null,         // 地图中心点（null表示自动居中）
+                    label: { 
+                        show: true,
+                        fontSize: 10      // 标签字体大小
+                    },
+                    data: provinceTotal,
+                    itemStyle: {
+                        areaColor: '#f0f0f0',
+                        borderColor: '#ccc',
+                        borderWidth: 1
+                    },
+                    emphasis: {
+                        itemStyle: {
+                            areaColor: '#e6f7ff',
+                            borderColor: '#409EFF',
+                            borderWidth: 2
+                        }
+                    }
+                }]
+            });
+
+            // 事件注册必须在mapChart初始化后
+            mapChart.on('click', function(params) {
+                // 只处理省级区域
+                const zhName = params.name;
+                if (!provinceEnMap[zhName]) return;
+                const enName = provinceEnMap[zhName];
+                currentProvince = zhName;
+                
+                fetch(`/static/maps/${enName}.json`).then(r => r.json()).then(provGeoJson => {
+                    // 同时请求城市数据和层次分布数据
+                    Promise.all([
+                        fetch(`/api/city_university_stats?province=${provinceNameMapReverse[zhName]}`),
+                        fetch(`/api/province_level_distribution?province=${provinceNameMapReverse[zhName]}`)
+                    ]).then(responses => Promise.all(responses.map(r => r.json()))).then(([cityData, levelData]) => {
+                        // 准备城市数据
+                        let cityMapData = [];
+                        let maxCount = 0;
+                        
+                        // 处理城市数据
+                        cityData.city_stats.forEach(item => {
+                            if (item.城市 && item.城市 !== 'None' && item.城市 !== 'nan') {
+                                cityMapData.push({
+                                    name: item.城市,
+                                    value: item.数量
+                                });
+                                maxCount = Math.max(maxCount, item.数量);
+                            }
+                        });
+                        
+                        // 如果有省级数据，添加一个虚拟的省级区域
+                        if (cityData.province_count > 0) {
+                            cityMapData.push({
+                                name: zhName,
+                                value: cityData.province_count
+                            });
+                            maxCount = Math.max(maxCount, cityData.province_count);
+                        }
+                        
+                        // 渲染省份地图
+                        renderMap(enName, provGeoJson, zhName + '大学数量分布', cityMapData, true);
+                        
+                        // 更新visualMap
+                        mapChart.setOption({
+                            visualMap: {
+                                min: 0,
+                                max: maxCount,
+                                left: 'left',
+                                top: 'bottom',
+                                text: ['多','少'],
+                                inRange: {
+                                    color: ['#00FF00', '#FFFF00', '#FFA500', '#FF0000']
+                                },
+                                calculable: true
+                            },
+                            tooltip: {
+                                trigger: 'item',
+                                formatter: function(params) {
+                                    return `${params.name}：${params.value || 0} 所大学`;
+                                }
+                            }
+                        });
+                        
+                        // 更新右侧图表
+                        updateRightCharts(zhName, cityMapData, levelData.level_stats);
+                        
+                        // 更新表格为当前省份的数据
+                        loadUniversityTable(provinceNameMapReverse[zhName], 1);
+                        updateStatBar(provinceNameMapReverse[zhName]);
+                    });
+                });
+            });
+            
+            // 添加双击事件返回全国视图
+            mapChart.on('dblclick', function(params) {
+                if (currentMap !== 'china') {
+                    // 返回全国视图
+                    currentProvince = null;
+                    renderMap('china', geoJson, '各省大学数量分布', provinceTotalCache.map(item => ({
+                        name: provinceNameMap[item['省份']],
+                        value: item['总数']
+                    })));
+                    resetRightCharts();
+                    // 更新表格为全国数据
+                    loadUniversityTable(null, 1);
+                    updateStatBar();
+                }
+            });
+
+            // 2. 各省大学数量 - 环形图
+            provincePie = echarts.init(document.getElementById('barChart'));
+            provincePie.setOption({
+                title: { text: '各省大学数量', left: 'center' },
+                tooltip: { trigger: 'item', formatter: function(params) { return params.name + '：' + params.value + '所'; } },
+                series: [{
+                    name: '大学数量',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['60%', '55%'],
+                    data: provinceTotal,
+                    emphasis: {
+                        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+                    },
+                    label: { formatter: '{b}' }
+                }]
+            });
+
+            // 3. 饼图
+            pieChart = echarts.init(document.getElementById('pieChart'));
+            pieChart.setOption({
+                title: { text: '大学层次占比', left: 'center' },
+                tooltip: { trigger: 'item' },
+                series: [{
+                    name: '层次',
+                    type: 'pie',
+                    radius: '60%',
+                    data: levelTotal.map(item => ({name: item['层次'], value: item['总数']})),
+                    emphasis: {
+                        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+                    }
+                }]
+            });
+
+            // 统计栏数据通过updateStatBar()统一处理，不需要在这里重复设置
+            
+            // 初始化加载全国大学表格
+            loadUniversityTable(null, 1);
+        });
+    });
+    </script>
+</body>
+</html> 
