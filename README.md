@@ -6,12 +6,16 @@
 
 This project is a university admission data visualization system based on Flask + ECharts, designed to display the 2025 national university admission situation in an intuitive chart and map format. The system provides multi-dimensional data analysis and interactive visualization features to help users understand the distribution of universities, enrollment plans, and institutional levels across provinces and cities in China.
 
+## 注意：本项目仅作为一个AI辅助编程的数据分析工程文件使用，数据来源于网络，无法证明其真伪，不可以作为任何有关高考信息及志愿填报参考！！！ 
+
+**CAUTION: This project is designed solely for AI-assisted programming and data analysis purposes. The data used is obtained from publicly available online sources, and its accuracy or authenticity cannot be guaranteed. This project must not be used as a reference for any college entrance examination (Gaokao) information, admission decisions, or application strategies. Users should independently verify any critical data before making decisions.**
+
 ## 主要功能 (Key Features)
 
 ### 📊 数据可视化组件
 - **中国地图可视化**: 显示各省大学数量分布，支持缩放、拖拽、省份点击查看详情
 - **各省大学数量环形图**: 展示各省大学数量对比和占比情况
-- **大学层次占比饼图**: 显示985、211、216等不同层次大学的分布情况
+- **大学层次占比饼图**: 显示985、211、双一流等不同层次大学的分布情况
 - **城市级别统计**: 点击省份后显示该省内各城市的大学分布
 
 ### 📈 统计信息面板
@@ -234,4 +238,4 @@ CollegeAdmissions2025/
 
 ---
 
-**注意**: 本项目仅用于教育和研究目的，所有数据来源于公开资料，请遵守相关法律法规使用。
+**注意**: 本项目仅用于AI分析数据目的，所有数据来源于网络公开资料，无法证明其真伪，不可以作为任何有关高考信息及志愿填报参考，请遵守相关法律法规使用。
